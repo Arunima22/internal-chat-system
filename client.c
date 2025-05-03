@@ -3,35 +3,43 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
-
-#define SV_SOCK_PATH "/tmp/usr_sock"
+#include <unistd.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
  
+void get_addr(struct sockaddr_in * addr, int port, char * add4){
+	memset(addr, 0, sizeof(struct sockaddr_in));
+	addr->sin_family = PF_INET;
+	addr->sin_port = htons(port);
+	inet_aton(add4, &addr->sin_addr);
+}
+
 int main(){
 
-	int socketFD = socket(PF_LOCAL, SOCK_STREAM, 0);
+	int socketFD = socket(PF_INET, SOCK_STREAM, 0);
 
 	if (socketFD == -1){
-		printf("Socket Not Made\n");
+		perror("Socket");
 	}
 	else {
-		printf("Socket Made\n");
 		printf("Socket FD: %d\n", socketFD);
 	}
 	
-	struct sockaddr_un addr;
-	memset(&addr, 0, sizeof(struct sockaddr_un));
-	addr.sun_family = PF_LOCAL;
-	strncpy(addr.sun_path, SV_SOCK_PATH, sizeof(addr.sun_path) - 1);
+	struct sockaddr_in addr;
+	get_addr(&addr, 8080, "127.0.0.1");
 
 
 	int client_res = connect(socketFD, (struct sockaddr *) &addr, sizeof(addr));	
 	if (client_res == -1) {
-		perror("connect");
-		printf("Connection to socket not successful\n");
+		perror("Connect");
 	}
 	else {
 		printf("Connection to socket successful\n");
 	}	
+	
+	char buf[500];
+	read(socketFD, buf, 500);
+	printf("Received: %s\n", buf);
 	
 	return 0;
 	
