@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -8,17 +9,27 @@
 #include <arpa/inet.h>
 
 #define BACKLOG 10
+#define BUFSIZE 1024
+#define MAXCLIENTS 5
 
-void get_addr(struct sockaddr_in * addr, int port, char * add4){
-	memset(addr, 0, sizeof(struct sockaddr_in));
-	addr->sin_family = PF_INET;
-	addr->sin_port = htons(port);
-	inet_aton(add4, &addr->sin_addr);
+void get_addr(struct sockaddr_in * serverAddress, int port, char * add4){
+	memset(serverAddress, 0, sizeof(struct sockaddr_in));
+	serverAddress->sin_family = PF_INET;
+	serverAddress->sin_port = htons(port);
+	inet_aton(add4, &serverAddress->sin_addr);
 }
  
-int main(){
+int main(int argc, char * argv[]){
 
-	int socketFD = socket(PF_INET, SOCK_STREAM, 0);
+	int socketFD, clientFD;
+	char message[BUFSIZE];
+
+	if (argc != 3){
+		printf("Usage: %s <IP> <port>\n", argv[0]);
+		return 0;
+	}
+
+	socketFD = socket(PF_INET, SOCK_STREAM, 0);
 
 	if (socketFD == -1){
 		perror("Socket");
@@ -27,43 +38,50 @@ int main(){
 		printf("Socket FD: %d\n", socketFD);
 	}
 	
-	struct sockaddr_in addr;
-	get_addr(&addr, 8080, "127.0.0.1");
-	
-	//unlink(SV_SOCK_PATH);
+	struct sockaddr_in serverAddress;
+	get_addr(&serverAddress, atoi(argv[2]), argv[1]);
 
-	int server_res = bind(socketFD, (struct sockaddr *) &addr, sizeof(addr));
-	if (server_res == -1){
+	int serverRes = bind(socketFD, (struct sockaddr *) &serverAddress, sizeof(serverAddress));
+	if (serverRes == -1){
 		perror("Bind");
 	} 
 	else {
 		printf("Bind was successful\n");
 	}
 
-	int listen_res = listen(socketFD, BACKLOG);
-	if (listen_res == -1){
+	int listenRes = listen(socketFD, BACKLOG);
+	if (listenRes == -1){
 		perror("Listen");
 	}
 	else {
 		printf("Socket now listening\n");
 	}
 
-	struct sockaddr_in client_addr;
-	socklen_t client_addr_len = sizeof(client_addr);
-	int accept_res = accept(socketFD, (struct sockaddr *) &client_addr, &client_addr_len);
-	if (accept_res == -1){
-		perror("Accept");
-	} else {
-		printf("Accepted connection\n");
+	struct sockaddr_in clientAddress;
+	socklen_t clientAddressLen = sizeof(clientAddress);
+
+	for (int i = 0; i < MAXCLIENTS; i++){
+		clientFD = accept(socketFD, (struct sockaddr *) &clientAddress, &clientAddressLen);
+		if (clientFD == -1){
+			perror("Accept");
+		} else {
+			printf("Accepted connection\n");
+		}
+		int str_len;
+		while(1){
+			str_len = read(clientFD,message,BUFSIZE);
+			if (str_len == 0){
+				break;
+			}
+			printf("Message received form client\n");
+			write(clientFD,message,str_len);
+			printf("Message echoed to client\n");
+		}
+			
+		close(clientFD);
 	}
 
-	char * message = "I received a message\n";
-	write(accept_res, message, strlen(message));
-	printf("Sent a message\n");
-
-	close(accept_res);
+	printf("Closing connection...\n");
 	close(socketFD);
-	
 	return 0;
-	
  }

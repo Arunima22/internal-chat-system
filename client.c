@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -6,6 +7,8 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#define BUFSIZE 1024
  
 void get_addr(struct sockaddr_in * addr, int port, char * add4){
 	memset(addr, 0, sizeof(struct sockaddr_in));
@@ -14,33 +17,49 @@ void get_addr(struct sockaddr_in * addr, int port, char * add4){
 	inet_aton(add4, &addr->sin_addr);
 }
 
-int main(){
+int main(int argc, char * argv[]){
 
-	int socketFD = socket(PF_INET, SOCK_STREAM, 0);
+	if (argc != 3){
+		printf("Usage: %s <IP> <port>\n", argv[0]);
+		return 0;
+	}
 
-	if (socketFD == -1){
+	int clientFD = socket(PF_INET, SOCK_STREAM, 0);
+	if (clientFD == -1){
 		perror("Socket");
+		return 0;
 	}
 	else {
-		printf("Socket FD: %d\n", socketFD);
+		printf("Socket FD: %d\n", clientFD);
 	}
 	
 	struct sockaddr_in addr;
-	get_addr(&addr, 8080, "127.0.0.1");
+	get_addr(&addr, atoi(argv[2]), argv[1]);
 
+	printf("Here\n");
 
-	int client_res = connect(socketFD, (struct sockaddr *) &addr, sizeof(addr));	
-	if (client_res == -1) {
+	int connectRes = connect(clientFD, (struct sockaddr *) &addr, sizeof(addr));	
+	if (connectRes == -1) {
 		perror("Connect");
 	}
 	else {
 		printf("Connection to socket successful\n");
 	}	
 	
-	char buf[500];
-	read(socketFD, buf, 500);
-	printf("Received: %s\n", buf);
-	
+	char buf[BUFSIZE];
+	while(1){
+		fputs("Input message (q to quit): ", stdout);
+		fgets(buf, BUFSIZE, stdin);
+		if(!strcmp(buf,"q\n")||!strcmp(buf,"Q\n"))
+			break;
+		write(clientFD, buf, strlen(buf));
+		int str_len = read(clientFD, buf, BUFSIZE-1);
+		buf[str_len] = 0;
+		printf("Message from the server: %s", buf);
+
+	}
+	printf("Closing connection...\n");
+	close(clientFD);
 	return 0;
 	
  }
